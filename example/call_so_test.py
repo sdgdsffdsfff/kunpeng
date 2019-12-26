@@ -21,6 +21,9 @@ kunpeng.GetPlugins.restype = c_char_p
 kunpeng.Check.argtypes = [c_char_p]
 kunpeng.Check.restype = c_char_p
 kunpeng.SetConfig.argtypes = [c_char_p]
+kunpeng.GetVersion.restype = c_char_p
+
+print(kunpeng.GetVersion())
 
 # 获取插件信息
 out = kunpeng.GetPlugins()
@@ -71,9 +74,4 @@ out = kunpeng.Check(task)
 print(json.loads(out))
 out = kunpeng.Check(task2)
 print(json.loads(out))
-
-# 测试web服务
-kunpeng.StartWebServer("0.0.0.0:3000")
-# 保证web服务运行
-time.sleep(10)
 

@@ -2,10 +2,12 @@
 package plugin
 
 import (
-	"strings"
-
+	"fmt"
 	. "github.com/opensec-cn/kunpeng/config"
 	"github.com/opensec-cn/kunpeng/util"
+	"sort"
+	"strconv"
+	"strings"
 )
 
 // GoPlugins GO插件集
@@ -52,13 +54,37 @@ type Plugin struct {
 func init() {
 	GoPlugins = make(map[string][]GoPlugin)
 	JSONPlugins = make(map[string][]JSONPlugin)
+	welcome := `
+ _
+| | ___   _ _ __  _ __   ___ _ __   __ _
+| |/ / | | | '_ \| '_ \ / _ \ '_ \ / _' |
+|   <| |_| | | | | |_) |  __/ | | | (_| |
+|_|\_\\__,_|_| |_| .__/ \___|_| |_|\__, |
+                 |_|               |___/
+`
+	fmt.Println(welcome)
+}
+
+func try(fun func(), handler func(interface{})) {
+	defer func() {
+		if err := recover(); err != nil {
+			handler(err)
+		}
+	}()
+	fun()
 }
 
 func pluginRun(taskInfo Task, plugin GoPlugin) (result []map[string]interface{}) {
 	if len(taskInfo.Meta.PassList) == 0 {
 		taskInfo.Meta.PassList = Config.PassList
 	}
-	if !plugin.Check(taskInfo.Netloc, taskInfo.Meta) {
+	var hasVul bool
+	try(func() {
+		hasVul = plugin.Check(taskInfo.Netloc, taskInfo.Meta)
+	}, func(e interface{}) {
+		util.Logger.Println("panic", e)
+	})
+	if hasVul == false {
 		return
 	}
 	for _, res := range plugin.GetResult() {
@@ -164,6 +190,27 @@ func Scan(task Task) (result []map[string]interface{}) {
 	}
 	return result
 }
+func getKPINTID(kpid string) int {
+	tmp1 := strings.Split(kpid, "-")
+	if len(tmp1) != 2 {
+		return 0
+	}
+	kpiniid, err := strconv.Atoi(tmp1[1])
+	if err != nil {
+		return 0
+	}
+	return kpiniid
+}
+
+type pluginsSlice []map[string]interface{}
+
+func (s pluginsSlice) Len() int      { return len(s) }
+func (s pluginsSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s pluginsSlice) Less(i, j int) bool {
+	ir := s[i]["references"].(map[string]interface{})
+	jr := s[j]["references"].(map[string]interface{})
+	return getKPINTID(ir["kpid"].(string)) < getKPINTID(jr["kpid"].(string))
+}
 
 // GetPlugins 获取插件信息
 func GetPlugins() (plugins []map[string]interface{}) {
@@ -186,5 +233,6 @@ func GetPlugins() (plugins []map[string]interface{}) {
 			plugins = append(plugins, pluginMap)
 		}
 	}
+	sort.Stable(pluginsSlice(plugins))
 	return plugins
 }

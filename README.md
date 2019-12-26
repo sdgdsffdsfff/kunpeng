@@ -5,12 +5,14 @@
 
 ## 简介
 
-Kunpeng是一个Golang编写的开源POC检测框架，集成了包括数据库、中间件、web组件、cms等等的漏洞POC，可检测弱口令、SQL注入、XSS、RCE等漏洞类型，以动态链接库的形式提供调用，通过此项目可快速对目标进行安全漏洞检测，比攻击者快一步发现风险漏洞。
+Kunpeng是一个Golang编写的开源POC检测框架，集成了包括数据库、中间件、web组件、cms等等的漏洞POC（[查看已收录POC列表](doc/plugin.md)），可检测弱口令、SQL注入、XSS、RCE等漏洞类型，以动态链接库的形式提供调用，通过此项目可快速开发漏洞检测类的系统，比攻击者快一步发现风险漏洞。
 
 这不是一个POC框架轮子，而是为了解决轮子问题而设计的，也不仅仅只是框架，定位是期望成为一个大家共同维护的漏洞POC库，安全开发人员只需专注于相关安全检测系统的业务逻辑代码实现，而不必各自重复的耗费精力维护漏洞库。
 
+**为避免被恶意使用，此项目所有收录的漏洞均为验证POC和理论判断，不存在漏洞利用过程，不会对目标发起真实攻击和漏洞利用。**
+
 运行环境：Windows，Linux，Darwin  
-工作形态：动态链接库，so、dll、go plugin  
+工作形态：动态链接库，so、dll、dylib、go plugin  
 
 
 ## 特点
@@ -18,7 +20,7 @@ Kunpeng是一个Golang编写的开源POC检测框架，集成了包括数据库�
 - 跨语言使用，动态链接库形式提供调用
 - 单文件，更新方便，直接覆盖即可
 - 开源社区维护，内置常见漏洞POC
-- 最小化漏洞验证和理论验证，尽量避免攻击行为
+- 最小化漏洞验证和理论判断，尽量避免攻击行为
 
 
 ## 使用场景
@@ -43,11 +45,11 @@ Kunpeng是一个Golang编写的开源POC检测框架，集成了包括数据库�
 ```go
 接口调用说明
 
-/*  发起任务，传入任务JSON，格式为：
+/*  传入需检测的目标JSON，格式为：
     {
         "type": "web", //目标类型web或者service
         "netloc": "http://xxx.com", //目标地址，web为URL，service格式为123.123.123.123:22
-        "target": "wordpress", //目标名称，GO插件注册时使用的字符串（模糊匹配）、JSON插件的target属性（模糊匹配）、CVE编号（例：CVE-xx-xxx）、KPID(例：KP-0013)编号，决定使用哪些POC进行检测
+        "target": "wordpress", //目标名称，GO插件注册时使用的字符串（模糊匹配）、JSON插件的target属性（模糊匹配）、CVE编号（例：CVE-xx-xxx）、KPID(例：KP-0013)编号，决定使用哪些POC进行检测，具体查看 /doc/plguin.md
         "meta":{
             "system": "windows",  //操作系统，部分漏洞检测方法不同系统存在差异，提供给插件进行判断
             "pathlist":[], //目录路径URL列表，部分插件需要此类信息，例如列目录漏洞插件
@@ -57,10 +59,10 @@ Kunpeng是一个Golang编写的开源POC检测框架，集成了包括数据库�
     }
     返回是否存在漏洞和漏洞检测结果
 */
-Check(taskJSON string) (bool, []map[string]string) 
+Check(taskJSON string) string
 
 // 获取插件列表信息
-GetPlugins() []map[string]string
+GetPlugins() string
 
 
 /*  配置设置，传入配置JSON，格式为：
@@ -78,106 +80,14 @@ SetConfig(configJSON string)
 // 开启web接口，开启后可通过web接口进行调用，webapi调用格式请查看例子：/example/call_webapi_test.py
 StartWebServer(bindAddr string)
 
+// 获取当前版本 例如：20190227
+GetVersion() string
+
+
 ```
 
 ## 使用例子
-- Golang
-
-```go
-package main
-
-import "plugin"
-import "fmt"
-import "encoding/json"
-
-
-type config struct{
-	Timeout int	`json:"timeout"`
-	Aider string	`json:"aider"`
-	HTTPProxy string	`json:"httpproxy"`
-	PassList []string	`json:"passlist"`
-}
-
-type Meta struct{
-	System string `json:"system"`
-	PathList []string `json:"pathlist"`
-	FileList []string `json:"filelist"`
-	PassList []string `json:"passlist"`
-}
-
-type Task struct {
-	Type string `json:"type"`
-	Netloc string `json:"netloc"`
-	Target string `json:"target"`
-	Meta Meta `json:"meta"`
-}
-
-type Greeter interface {
-	Check(taskJSON string) ([]map[string]string)
-	GetPlugins() []map[string]string
-	SetConfig(configJSON string)
-    ShowLog()
-}
-
-
-func main() {
-	plug, err := plugin.Open("./kunpeng_go.so")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	symGreeter, err := plug.Lookup("Greeter")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	kunpeng, ok := symGreeter.(Greeter)
-	if !ok {
-		fmt.Println("unexpected type from module symbol")
-		return
-	}
-    // 获取插件信息
-	fmt.Println(kunpeng.GetPlugins())
-    
-    // 修改配置
-	c := &config{
-		Timeout: 15,
-		// Aider: "",
-		// HTTPProxy: "",
-		// PassList: []string{"ptest"},
-        // ExtraPluginPath: "/home/test/plugin/",
-	}
-	configJSONBytes, _ := json.Marshal(c)
-	kunpeng.SetConfig(string(configJSONBytes))
-    
-    // 开启日志打印
-	kunpeng.ShowLog()
-    
-    // 扫描目标
-	task := Task{
-		Type: "service",
-		Netloc: "192.168.0.105:3306",
-		Target: "mysql",
-		Meta : Meta{
-			PassList: []string{"ttest"},
-		},
-	}
-	task2 := Task{
-		Type: "web",
-		Netloc: "http://www.google.cn",
-		Target: "web",
-	}
-	jsonBytes, _ := json.Marshal(task)
-	result:= kunpeng.Check(string(jsonBytes))
-	fmt.Println(result)
-	jsonBytes, _ = json.Marshal(task2)
-	result= kunpeng.Check(string(jsonBytes))
-	fmt.Println(result)
-}
-
-```
-
-- python2
+Python
 
 ```python
 #coding:utf-8
@@ -194,6 +104,7 @@ kunpeng.GetPlugins.restype = c_char_p
 kunpeng.Check.argtypes = [c_char_p]
 kunpeng.Check.restype = c_char_p
 kunpeng.SetConfig.argtypes = [c_char_p]
+kunpeng.GetVersion.restype = c_char_p
 
 # 获取插件信息
 out = kunpeng.GetPlugins()
@@ -231,7 +142,7 @@ print(json.loads(out))
 
 
 
-更多例子查看: [example] 目录，欢迎提交更多语言的调用样例。
+更多例子查看: [example] 目录，目前已提供python、golang、nodejs、lua、java的调用例子，欢迎提交更多语言的调用样例。
 
 
 
@@ -270,14 +181,17 @@ func (d *redisWeakPass) Init() plugin.Plugin{
 		Author:  "wolf", // 插件编写作者
 	    	References: plugin.References{
 		    URL: "https://www.freebuf.com/vuls/162035.html", // 漏洞相关文章
-		    CVE: "", // CVE编号，没有留空
+		    CVE: "", // CVE编号，没有留空或不申明
+		    KPID: "KP-0008", // kunpeng的POC编号，累加数字
 		},
 	}
 	return d.info
 }
 
 func (d *redisWeakPass) GetResult() []plugin.Plugin {
-	return d.result
+	var result = d.result
+	d.result = []plugin.Plugin{}
+	return result
 }
 
 func (d *redisWeakPass) Check(netloc string, meta plugin.TaskMeta) bool {
@@ -337,13 +251,16 @@ func (d *webDavRCE) Init() plugin.Plugin{
 		References: plugin.References{
 			URL: "https://www.seebug.org/vuldb/ssvid-92834",
 			CVE: "CVE-2017-7269",
+			KPID: "KP-0009",
 		},
 	}
 	return d.info
 }
 
 func (d *webDavRCE) GetResult() []plugin.Plugin {
-	return d.result
+	var result = d.result
+	d.result = []plugin.Plugin{}
+	return result
 }
 
 func (d *webDavRCE) Check(URL string, meta plugin.TaskMeta) bool {
@@ -389,7 +306,9 @@ func (d *webDavRCE) Check(URL string, meta plugin.TaskMeta) bool {
             "//": "漏洞相关文章",
             "url":"https://www.seebug.org/vuldb/ssvid-89179",
             "//": "CVE编号，没有留空",
-            "cve":""
+            "cve":"",
+	    "//": "kunpeng的POC编号，累加数字",
+	    "kpid":"KP-0003"
         }
     },
     "request":{
@@ -409,21 +328,24 @@ func (d *webDavRCE) Check(URL string, meta plugin.TaskMeta) bool {
 
 ### 编译
 
+**注意, 第三方库管理已更改为GoMod**
+
 ```shell
 go get -d github.com/opensec-cn/kunpeng
 cd $GOPATH/src/github.com/opensec-cn/kunpeng
 
+
 # 静态资源打包进工程的小程序
-go install ./vendor/github.com/mjibson/esc
+go install github.com/mjibson/esc
 
 # 打包JSON插件到项目代码中
 esc -include='\.json$' -o plugin/json/JSONPlugin.go -pkg jsonplugin plugin/json/
 
 # 编译c版本（所有语言均可使用）
-go build -buildmode=c-shared --ldflags="-w -s" -o kunpeng_c.so
+go build -buildmode=c-shared --ldflags="-w -s -X main.VERSION=20190226" -o kunpeng_c.so
 
 # 编译Go专用版本（不支持win）
-go build -buildmode=plugin --ldflags="-w -s" -o kunpeng_go.so
+go build -buildmode=plugin --ldflags="-w -s -X main.VERSION=20190226" -o kunpeng_go.so
 
 # 样例测试
 python example/call_so_test.py

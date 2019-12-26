@@ -33,10 +33,15 @@ func (d *directoryBrowse) Init() plugin.Plugin {
 	return d.info
 }
 func (d *directoryBrowse) GetResult() []plugin.Plugin {
-	return d.result
+	var result = d.result
+	d.result = []plugin.Plugin{}
+	return result
 }
 func (d *directoryBrowse) Check(URL string, meta plugin.TaskMeta) bool {
-	u, _ := url.Parse(URL)
+	u, err := url.Parse(URL)
+	if err != nil {
+		return false
+	}
 	flagList := []string{
 		`<title>index of \/`,
 		`<title>directory listing for`,
@@ -56,6 +61,7 @@ func (d *directoryBrowse) Check(URL string, meta plugin.TaskMeta) bool {
 			result := d.info
 			result.Response = resp.ResponseRaw
 			result.Request = resp.RequestRaw
+			result.Remarks = "path: " + pathURL + " " + result.Remarks
 			d.result = append(d.result, result)
 			return true
 		}

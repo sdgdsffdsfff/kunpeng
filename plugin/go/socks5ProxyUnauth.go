@@ -28,13 +28,15 @@ func (d *socks5ProxyUnauth) Init() plugin.Plugin {
 		Type:    "UNAUTH",
 		Author:  "wolf",
 		References: plugin.References{
-			KPID: "KP-0019",
+			KPID: "KP-0076",
 		},
 	}
 	return d.info
 }
 func (d *socks5ProxyUnauth) GetResult() []plugin.Plugin {
-	return d.result
+	var result = d.result
+	d.result = []plugin.Plugin{}
+	return result
 }
 func (d *socks5ProxyUnauth) Check(netloc string, meta plugin.TaskMeta) bool {
 	if strings.IndexAny(netloc, "http") == 0 {
